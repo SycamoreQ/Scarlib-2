@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+
+  learning:
+    image: davidedomini99/learning
+    build:
+      dockerfile: ./docker/learning/Dockerfile
+      context: .
+    volumes:
+      - .:/experiment:rw
+      - ./data:/experiment/data:rw
+
+  evaluation:
+    image: davidedomini99/evaluation
+    build: 
+      dockerfile: ./docker/evaluation/Dockerfile
+      context: .
+    volumes:
+      - .:/experiment:rw
+      - ./data:/experiment/data:rw
