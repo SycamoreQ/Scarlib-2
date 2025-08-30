@@ -1,16 +1,15 @@
 package vmas
 
-import it.unibo.scarlib.core.model._
-import it.unibo.scarlib.core.neuralnetwork.DQNAbstractFactory
-import it.unibo.scarlib.dsl.DSL._
+import scarlib.core.model._
+import scarlib.core.neuralnetwork.DQNAbstractFactory
+import DSL._ 
 import vmas.RewardFunctionEpidemic.{CurrentState, InfectionPenalty, Lambda, NewState, RewardFunctionStep, Tensor, VaccinationDrive, airportFunc, hospitalUtilization, rewardFunctionStep}
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PyQuote
 import vmas.VMASEpidemicState.encoding
 import vmas.WANDBLogger
-
-import it.unibo.scarlib.vmas._
+import vmas.VmasEpidemicEnvironment
 
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
@@ -151,9 +150,15 @@ object MainEpidemic extends App {
   // Initialize logging
   WANDBLogger.init()
 
+  // Ensure Python can import local modules like AbstractEnv.py
+  CPythonInterpreter.execManyLines(
+    """import sys, os; [sys.path.append(os.path.abspath(p)) for p in ["./src/main/resources","./build/resources/main","./src/main/scala/resources"] if os.path.isdir(p) and os.path.abspath(p) not in sys.path]"""
+  )
 
-  // Create scenario (similar to Main.scala)
-  val scenario = py.module("EpidemicEnv").Scenario(rfLambda, obsLambda)
+
+  // Now you can safely import AbstractEnv
+  val scenario = py.module("AbstractEnv").Scenario(rfLambda, obsLambda)
+
 
   private val envSettings = VmasSettings(
     scenario = scenario,
@@ -200,7 +205,7 @@ object MainEpidemic extends App {
     }
 
     environment {
-      "it.unibo.scarlib.vmas.VmasEpidemicEnvironment"
+      "scarlib.vmas.VmasEpidemicEnvironment"
     }
   }(ExecutionContext.global, VMASEpidemicState.encoding)
 

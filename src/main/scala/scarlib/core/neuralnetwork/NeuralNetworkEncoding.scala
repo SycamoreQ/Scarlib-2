@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.neuralnetwork
+package scarlib.core.neuralnetwork
 import me.shadaj.scalapy.readwrite.Reader.doubleReader
 
 import it.unibo.scarlib.core.model.State

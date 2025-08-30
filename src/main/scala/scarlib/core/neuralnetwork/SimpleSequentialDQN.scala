@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.neuralnetwork
+package scarlib.core.neuralnetwork
 
 import it.unibo.scarlib.core.model.AutodiffDevice
 import it.unibo.scarlib.core.neuralnetwork.TorchSupport.{neuralNetworkModule => nn}

@@ -9,7 +9,7 @@
 ///added Epidemic Replay Buffer . Reference : Scarlib official repository: https://github.com/ScaRLib-group/ScaRLib.git
 
 
-package it.unibo.scarlib.core.model
+package scarlib.core.model
 
 import scala.util.Random
 import collection.mutable.ArrayDeque

@@ -1,7 +1,7 @@
 package vmas
 
-import it.unibo.scarlib.core.model
-import it.unibo.scarlib.core.model.{Action, RewardFunction, State}
+import scarlib.core.model
+import scarlib.core.model.{Action, RewardFunction, State}
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PyQuote

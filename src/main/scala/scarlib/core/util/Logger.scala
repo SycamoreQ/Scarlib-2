@@ -1,4 +1,4 @@
-package it.unibo.scarlib.core.util
+package scarlib.core.util
 
 import me.shadaj.scalapy.py
 

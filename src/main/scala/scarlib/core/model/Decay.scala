@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.model
+package scarlib.core.model
 
 /** A mathematical function that decreases its value over the time */
 trait Decay[T]{

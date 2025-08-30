@@ -1,8 +1,8 @@
 package vmas
 
-import it.unibo.scarlib.core.model.{AutodiffDevice, State}
-import it.unibo.scarlib.core.neuralnetwork.NeuralNetworkEncoding
-import it.unibo.scarlib.vmas
+import scarlib.core.model.{AutodiffDevice, State}
+import scarlib.core.neuralnetwork.NeuralNetworkEncoding
+import scarlib.vmas
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.readwrite.Reader.{doubleReader, _}
 

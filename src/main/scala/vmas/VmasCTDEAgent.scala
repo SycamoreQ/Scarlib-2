@@ -1,8 +1,8 @@
 package vmas
 
-import it.unibo.scarlib.core.system.{CTDEAgent, DTDEAgent}
-import it.unibo.scarlib.core.model.{Action, Experience, ReplayBuffer, State}
-import it.unibo.scarlib.core.util.AgentGlobalStore
+import scarlib.core.system.{CTDEAgent, DTDEAgent}
+import scarlib.core.model.{Action, Experience, ReplayBuffer, State}
+import scarlib.core.util.AgentGlobalStore
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

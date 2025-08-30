@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.neuralnetwork
+package scarlib.core.neuralnetwork
 
 /** A generic deep neural network used to approximate the Q-Function */
 trait DQN

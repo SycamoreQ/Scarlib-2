@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.util
+package scarlib.core.util
 
 import it.unibo.scarlib.core.neuralnetwork.TorchSupport
 import me.shadaj.scalapy.py

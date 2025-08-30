@@ -7,9 +7,9 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.system
+package scarlib.core.system
 
-import it.unibo.scarlib.core.model._
+import scarlib.core.model._
 import scala.reflect.io.File
 import scala.util.Random
 import scala.concurrent.ExecutionContext.Implicits.global

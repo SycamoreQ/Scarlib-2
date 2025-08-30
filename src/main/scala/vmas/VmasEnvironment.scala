@@ -1,8 +1,8 @@
 package vmas
 
-import it.unibo.scarlib.core.model.{Action, AutodiffDevice, Environment, RewardFunction, State}
-import it.unibo.scarlib.core.neuralnetwork.TorchSupport
-import it.unibo.scarlib.core.util.{AgentGlobalStore, Logger}
+import scarlib.core.model.{Action, AutodiffDevice, Environment, RewardFunction, State}
+import scarlib.core.neuralnetwork.TorchSupport
+import scarlib.core.util.{AgentGlobalStore, Logger}
 import vmas.WANDBLogger
 
 import scala.concurrent.{ExecutionContext, Future}

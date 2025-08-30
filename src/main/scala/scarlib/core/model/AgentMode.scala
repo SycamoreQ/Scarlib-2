@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.model
+package scarlib.core.model
 
 /** Indicates whether the agent is in training or testing */
 sealed trait AgentMode

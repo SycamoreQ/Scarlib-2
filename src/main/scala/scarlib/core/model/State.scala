@@ -9,7 +9,7 @@
 
 ///added State changes . Reference : Scarlib official repository: https://github.com/ScaRLib-group/ScaRLib.git
 
-package it.unibo.scarlib.core.model
+package scarlib.core.model
 
 import it.unibo.scarlib.core.neuralnetwork.NeuralNetworkEncoding
 

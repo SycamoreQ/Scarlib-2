@@ -1,7 +1,9 @@
 package vmas
 
-import it.unibo.scarlib.core.util.Logger
+import scarlib.core.util.Logger
 import me.shadaj.scalapy.py
+
+
 
 object WANDBLogger extends Logger {
 
@@ -16,7 +18,6 @@ object WANDBLogger extends Logger {
     def init(): py.Dynamic = {
         wandbInit = Some(wandb.init(
             project = "vmas",
-            entity = "scarlib"
         ))
         wandbInit.get
     }

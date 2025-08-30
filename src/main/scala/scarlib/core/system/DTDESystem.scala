@@ -7,11 +7,11 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.system
+package scarlib.core.system
 
 import scala.annotation.tailrec
-import it.unibo.scarlib.core.model.{Environment, State}
-import it.unibo.scarlib.core.neuralnetwork.{NeuralNetworkEncoding, NeuralNetworkSnapshot}
+import scarlib.core.model.{Environment, State}
+import scarlib.core.neuralnetwork.{NeuralNetworkEncoding, NeuralNetworkSnapshot}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.{Await, Future}

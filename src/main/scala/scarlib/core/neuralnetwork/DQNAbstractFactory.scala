@@ -7,7 +7,7 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.neuralnetwork
+package scarlib.core.neuralnetwork
 
 /** A factory of neural networks */
 abstract class DQNAbstractFactory[T] {

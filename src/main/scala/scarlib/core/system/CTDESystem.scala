@@ -7,11 +7,11 @@
  * MIT License as described in the file LICENSE in the ScaRLib distribution's top directory.
  */
 
-package it.unibo.scarlib.core.system
+package scarlib.core.system
 
-import it.unibo.scarlib.core.model.{Action, Decay, DeepQLearner, Environment, LearningConfiguration, ReplayBuffer, State}
-import it.unibo.scarlib.core.util.{Logger, TorchLiveLogger}
-import it.unibo.scarlib.core.neuralnetwork.{NeuralNetworkEncoding, NeuralNetworkSnapshot}
+import scarlib.core.model.{Action, Decay, DeepQLearner, Environment, LearningConfiguration, ReplayBuffer, State}
+import scarlib.core.util.{Logger, TorchLiveLogger}
+import scarlib.core.neuralnetwork.{NeuralNetworkEncoding, NeuralNetworkSnapshot}
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
@@ -23,7 +23,7 @@ import scala.concurrent.{Await, Future}
  * @param environment the environment in which the agents interact
  * @param dataset the global container of agents experience
  * @param actionSpace all the possible actions an agent can perform
- * @param learningConfiguration all the hyper-parameters specified by the user
+ * @param learningConfiguration all the hyperparameters specified by the user
  * @param context the [[ExecutionContext]], it is used to configure how and on which thread pools asynchronous tasks (such as Futures) will run
  */
 class CTDESystem(

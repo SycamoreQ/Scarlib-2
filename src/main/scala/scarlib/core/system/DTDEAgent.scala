@@ -9,11 +9,11 @@
 
 ///added Epidemic Agent . Reference : Scarlib official repository: https://github.com/ScaRLib-group/ScaRLib.git
 
-package it.unibo.scarlib.core.system
+package scarlib.core.system
 
-import it.unibo.scarlib.core.model.{Action, Agent, AgentMode, Decay, DeepQLearner, Environment, Experience, LearningConfiguration, ReplayBuffer, State}
-import it.unibo.scarlib.core.neuralnetwork.{NeuralNetworkEncoding, NeuralNetworkSnapshot}
-import it.unibo.scarlib.core.util.{Logger, TorchLiveLogger}
+import scarlib.core.model.{Action, Agent, AgentMode, Decay, DeepQLearner, Environment, Experience, LearningConfiguration, ReplayBuffer, State}
+import scarlib.core.neuralnetwork.{NeuralNetworkEncoding, NeuralNetworkSnapshot}
+import scarlib.core.util.{Logger, TorchLiveLogger}
 
 import scala.reflect.io.File
 import scala.concurrent.ExecutionContext.Implicits.global
