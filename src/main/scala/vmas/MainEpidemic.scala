@@ -8,11 +8,15 @@ import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PyQuote
 import vmas.VMASEpidemicState.encoding
+import vmas.WANDBLogger
 
 import it.unibo.scarlib.vmas._
 
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
+
+import me.shadaj.scalapy._
+import ai.kien.python.Python
 
 object MainEpidemic extends App {
 

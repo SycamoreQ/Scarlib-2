@@ -40,6 +40,8 @@ dependencies {
     implementation("it.unibo.alchemist:alchemist-incarnation-protelis:25.14.6")
     implementation("it.unibo.alchemist:alchemist-swingui:25.7.1")
     implementation("dev.scalapy:scalapy-core_2.13:0.5.3")
+    // https://mvnrepository.com/artifact/ai.kien/python-native-libs
+    implementation("ai.kien:python-native-libs_3:0.2.4")
     implementation("org.slf4j:slf4j-api:2.0.6")
     implementation("ch.qos.logback:logback-classic:1.4.5")
 }
@@ -74,3 +76,10 @@ tasks.register<JavaExec>("simpleExperimentEvalGui") {
     args = listOf("20")
     classpath = sourceSets["main"].runtimeClasspath
 }
+
+tasks.named<JavaExec>("simpleExperimentTrainingGui") {
+    group = "ScaRLib Training"
+    mainClass.set("vmas.MainEpidemic")
+    environment("SCALAPY_PYTHON_LIBRARY", "/opt/homebrew/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/lib/libpython3.9.dylib")
+}
+
