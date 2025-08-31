@@ -1,7 +1,7 @@
 package vmas
 
-import scarlib.core.model.{Action, AutodiffDevice}
-import scarlib.core.neuralnetwork.TorchSupport
+import scarlib.model.{Action, AutodiffDevice}
+import scarlib.neuralnetwork.TorchSupport
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Writer.floatWriter

@@ -1,6 +1,6 @@
 package vmas
 
-import scarlib.core.neuralnetwork.{DQNAbstractFactory, SimpleSequentialDQN}
+import scarlib.neuralnetwork.{DQNAbstractFactory, SimpleSequentialDQN}
 import me.shadaj.scalapy.py
 
 class NNFactory(stateDescriptor: VmasStateDescriptor, actionsSpace: Seq[VMASAction]) extends DQNAbstractFactory[py.Dynamic] {

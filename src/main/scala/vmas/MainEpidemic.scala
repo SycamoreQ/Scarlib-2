@@ -1,8 +1,7 @@
 package vmas
 
-import scarlib.core.model._
-import scarlib.core.neuralnetwork.DQNAbstractFactory
-import DSL._ 
+import scarlib.model._
+import scarlib.neuralnetwork.DQNAbstractFactory
 import vmas.RewardFunctionEpidemic.{CurrentState, InfectionPenalty, Lambda, NewState, RewardFunctionStep, Tensor, VaccinationDrive, airportFunc, hospitalUtilization, rewardFunctionStep}
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
@@ -10,6 +9,7 @@ import me.shadaj.scalapy.py.PyQuote
 import vmas.VMASEpidemicState.encoding
 import vmas.WANDBLogger
 import vmas.VmasEpidemicEnvironment
+import 
 
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions

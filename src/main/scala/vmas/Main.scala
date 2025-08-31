@@ -1,7 +1,7 @@
 package vmas
 
-import scarlib.core.model._
-import scarlib.dsl.DSL._
+import scarlib.model._
+import dsl._
 import vmas.RewardFunctionDSL.{AddOps, AddRoot, AddTwoStepOps, CurrentState, Lambda, MapOps, NewState, ReduceOps, Tensor, doubleToPyDynamic, rewardFunctionStep, tensorToPyDynamic}
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py

@@ -1,6 +1,6 @@
 package vmas
 
-import scarlib.core.util.Logger
+import scarlib.util.Logger
 import me.shadaj.scalapy.py
 
 

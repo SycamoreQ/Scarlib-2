@@ -1,6 +1,6 @@
 package vmas
 
-import scarlib.core.model._
+import scarlib.model._
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
 

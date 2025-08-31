@@ -1,7 +1,7 @@
 package vmas
 
-import scarlib.core.model.{AutodiffDevice, State}
-import scarlib.core.neuralnetwork.NeuralNetworkEncoding
+import scarlib.model.{AutodiffDevice, State}
+import scarlib.neuralnetwork.NeuralNetworkEncoding
 import vmas.RewardFunctionEpidemic.Tensor
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.readwrite.Reader.doubleReader

@@ -1,6 +1,6 @@
 package vmas
 
-import scarlib.core.model.AutodiffDevice
+import scarlib.model.AutodiffDevice
 import me.shadaj.scalapy.py
 
 case class VmasSettings(

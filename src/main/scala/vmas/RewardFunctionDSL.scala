@@ -1,7 +1,7 @@
 package vmas
 
-import scarlib.core.model
-import scarlib.core.model.{Action, RewardFunction, State}
+import scarlib.model
+import scarlib.model.{Action, RewardFunction, State}
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PyQuote
