@@ -2,7 +2,7 @@ package vmas
 
 import scarlib.model.{AutodiffDevice, State}
 import scarlib.neuralnetwork.NeuralNetworkEncoding
-import scarlib.vmas
+import vmas.* 
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.readwrite.Reader.{doubleReader, _}
 

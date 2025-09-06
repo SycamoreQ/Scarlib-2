@@ -3,6 +3,7 @@ package vmas
 import scarlib.model.{AutodiffDevice, State}
 import scarlib.neuralnetwork.NeuralNetworkEncoding
 import vmas.RewardFunctionEpidemic.Tensor
+import vmas.VmasStateDescriptor
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.readwrite.Reader.doubleReader
 
@@ -153,19 +154,19 @@ object VMASEpidemicState {
   def apply(array: py.Dynamic): VMASEpidemicState =
     new VMASEpidemicState(py.module("torch").tensor(array).to(AutodiffDevice()))
 
-  private var stateDescriptor: Option[VMASEpidemicStateDescriptor] = None
+  private var stateDescriptor: Option[VmasStateDescriptor] = None
 
-  def setDescriptor(descriptor: VMASEpidemicStateDescriptor): Unit = stateDescriptor = Some(descriptor)
+  def setDescriptor(descriptor: VmasStateDescriptor): Unit = stateDescriptor = Some(descriptor)
 
   implicit val encoding: NeuralNetworkEncoding[State] = new NeuralNetworkEncoding[State] {
 
     override def elements(): Int = stateDescriptor match {
-      case Some(descriptor) => descriptor.getTensorSize
+      case Some(descriptor) => descriptor.getSize
       case None => throw new Exception("State descriptor not set")
     }
 
     override def toSeq(element: State): Seq[Double] = {
-      val pythonList = element.asInstanceOf[VMASEpidemicState].tensor.flatten().tolist
+      val pythonList = element.asInstanceOf[VMASEpidemicState].tensor.flatten().tolist()
       val length = pythonList.__len__().as[Int]
       (0 until length).map(i => pythonList.__getitem__(i).as[Double]).toSeq
     }

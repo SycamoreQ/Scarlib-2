@@ -11,7 +11,7 @@ class NNFactory(stateDescriptor: VmasStateDescriptor, actionsSpace: Seq[VMASActi
 
 }
 
-class EpidemicNNFactory(input : Int = 1000 , actionSpace : Seq[VMASEpidemicAction]) extends DQNAbstractFactory[py.Dynamic]{
+class EpidemicNNFactory(input : Int = 1000 , actionSpace : Seq[VMASAction]) extends DQNAbstractFactory[py.Dynamic]{
 
   override def createNN(): py.Dynamic = {
     SimpleSequentialDQN(input , 64 , actionSpace.size)

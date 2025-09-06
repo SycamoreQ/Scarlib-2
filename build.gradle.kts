@@ -80,6 +80,8 @@ tasks.register<JavaExec>("simpleExperimentEvalGui") {
 tasks.named<JavaExec>("simpleExperimentTrainingGui") {
     group = "ScaRLib Training"
     mainClass.set("vmas.MainEpidemic")
+    classpath = sourceSets.main.get().runtimeClasspath
     environment("SCALAPY_PYTHON_LIBRARY", "/opt/homebrew/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/lib/libpython3.9.dylib")
 }
+
 

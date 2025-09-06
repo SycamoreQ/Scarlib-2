@@ -1,6 +1,6 @@
 package vmas
 
-import scarlib.model._
+import scarlib.model.*
 import scarlib.neuralnetwork.DQNAbstractFactory
 import vmas.RewardFunctionEpidemic.{CurrentState, InfectionPenalty, Lambda, NewState, RewardFunctionStep, Tensor, VaccinationDrive, airportFunc, hospitalUtilization, rewardFunctionStep}
 import me.shadaj.scalapy.interpreter.CPythonInterpreter
@@ -9,12 +9,11 @@ import me.shadaj.scalapy.py.PyQuote
 import vmas.VMASEpidemicState.encoding
 import vmas.WANDBLogger
 import vmas.VmasEpidemicEnvironment
-import 
+import scarlib.model.DSL.{CTDELearningSystem, actionSpace, agents, dataset, environment, learningConfiguration, rewardFunction}
 
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
-
-import me.shadaj.scalapy._
+import me.shadaj.scalapy.*
 import ai.kien.python.Python
 
 object MainEpidemic extends App {
@@ -46,6 +45,10 @@ object MainEpidemic extends App {
   rewardFunctionStep {
     epidemicRewardFunction
   }
+
+  val descriptor = VmasStateDescriptor()
+  VMASEpidemicState.setDescriptor(descriptor)
+
 
   // Define epidemic reward function in Python using your DSL components
   // This translates your Scala DSL to executable Python code
@@ -199,15 +202,15 @@ object MainEpidemic extends App {
     }
     learningConfiguration {
       LearningConfiguration(
-        dqnFactory = new EpidemicNNFactory(1000 , RealEpidemicAction.toSeq),
+        dqnFactory = new EpidemicNNFactory(1000, RealEpidemicAction.toSeq),
         snapshotPath = where
       )
     }
 
     environment {
-      "scarlib.vmas.VmasEpidemicEnvironment"
+      "vmas.VmasEpidemicEnvironment"
     }
-  }(ExecutionContext.global, VMASEpidemicState.encoding)
+  } (ExecutionContext.global, VMASEpidemicState.encoding)
 
   println("Starting epidemic simulation training...")
   epidemicSystem.learn(envSettings.nEpochs, envSettings.nSteps)
