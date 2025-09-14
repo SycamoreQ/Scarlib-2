@@ -15,11 +15,113 @@ import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
 import me.shadaj.scalapy.*
 import ai.kien.python.Python
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{SparkSession, Row}
+import org.apache.spark.sql.functions.*
+import org.apache.spark.sql.Encoders
+import scarlib.model.*
 
 object MainEpidemic extends App {
 
-  // Environment parameters
-  val nAgents = 5  // Number of countries/regions in epidemic simulation
+  val spark = SparkSession.builder()
+    .appName("EpidemicSimulation")
+    .master("local[*]")
+    .getOrCreate()
+
+  import spark.implicits._
+
+  val epidemicSchema = StructType(Seq(
+    StructField("susceptible", IntegerType, nullable = false),
+    StructField("infected", IntegerType, nullable = false),
+    StructField("recovered", IntegerType, nullable = false),
+    StructField("deaths", IntegerType, nullable = false),
+    StructField("exposed", IntegerType, nullable = false),
+    StructField("hospitalCapacity", IntegerType, nullable = false),
+    StructField("location", StringType, nullable = false),
+    StructField("airports", ArrayType(StringType), nullable = true),
+    StructField("vaccinatedPopulation", IntegerType, nullable = false),
+    StructField("travelVolume", IntegerType, nullable = false),
+    StructField("currentDate", StringType, nullable = true),
+    StructField("previousInfected", IntegerType, nullable = false),
+    StructField("previousRecovered", IntegerType, nullable = false),
+    StructField("previousDeaths", IntegerType, nullable = false),
+    StructField("ageDistribution", MapType(StringType, IntegerType), nullable = true),
+    StructField("incomingTravelers", MapType(StringType, IntegerType), nullable = true),
+    StructField("outgoingTravelers", MapType(StringType, IntegerType), nullable = true),
+    StructField("airportTraffic", MapType(StringType, MapType(StringType, IntegerType)), nullable = true)
+  ))
+
+  def epidemicDataToRow(data: EpidemicData): Row = {
+    Row(
+      data.susceptible,
+      data.infected,
+      data.recovered,
+      data.deaths,
+      data.exposed,
+      data.hospitalCapacity,
+      data.location,
+      data.airports, // List[String] -> Seq[String] for Spark
+      data.vaccinatedPopulation,
+      data.travelVolume,
+      data.currentDate,
+      data.previousInfected,
+      data.previousRecovered,
+      data.previousDeaths,
+      data.ageDistribution, // Map[String, Int]
+      data.incomingTravelers, // Map[String, Int]
+      data.outgoingTravelers, // Map[String, Int]
+      data.airportTraffic // Map[String, Map[String, Int]]
+    )
+  }
+
+
+  val epidemicData = Seq(
+    EpidemicData(
+      susceptible = 1000000,
+      infected = 1500,
+      recovered = 500,
+      deaths = 50,
+      exposed = 200,
+      hospitalCapacity = 10000,
+      location = "Italy",
+      airports = List("FCO", "MXP"),
+      vaccinatedPopulation = 50000,
+      travelVolume = 25000
+    ),
+    EpidemicData(
+      susceptible = 999000,
+      infected = 1200,
+      recovered = 400,
+      deaths = 30,
+      exposed = 150,
+      hospitalCapacity = 8000,
+      location = "Germany",
+      airports = List("FRA", "MUC"),
+      vaccinatedPopulation = 45000,
+      travelVolume = 30000
+    ),
+    EpidemicData(
+      susceptible = 11100000,
+      infected = 3000,
+      recovered = 50,
+      deaths = 1000,
+      exposed = 400,
+      hospitalCapacity = 100000,
+      location = "China",
+      airports = List("XIV", "JKP", "MNO", "TUV"),
+      vaccinatedPopulation = 5000,
+      travelVolume = 2500,
+    )
+  )
+
+  val rowData = epidemicData.map(epidemicDataToRow)
+  val rdd = spark.sparkContext.parallelize(rowData)
+  val epidemicDF = spark.createDataFrame(rdd, epidemicSchema)
+
+  val collectedData = epidemicDF.collect()
+
+
+  val nAgents = 3  // Number of countries/regions in epidemic simulation
   val nSteps = 100
   val nEpochs = 150
 
@@ -29,7 +131,7 @@ object MainEpidemic extends App {
 
   // Define epidemic-specific constants
   val diseaseOrigin = "China"
-  val targetCountries = Seq("Italy", "USA", "Germany", "France")
+  val targetCountries = Seq("Italy" ,  "Germany")
 
   val epidemicRewardFunction =
     InfectionPenalty((Tensor(0.5)), CurrentState) ++
@@ -46,12 +148,16 @@ object MainEpidemic extends App {
     epidemicRewardFunction
   }
 
-  val descriptor = VmasStateDescriptor()
+  val descriptor = VmasStateDescriptor(
+    hasPosition = false,
+    hasVelocity = false,
+    extraDimension = 7
+  )
   VMASEpidemicState.setDescriptor(descriptor)
+  println(s"Epidemic state encoding size: ${VMASEpidemicState.encoding.elements()}")
 
 
-  // Define epidemic reward function in Python using your DSL components
-  // This translates your Scala DSL to executable Python code
+  // Define epidemic reward function in Python using DSL components
   CPythonInterpreter.execManyLines(
     """def epidemic_rf(env, agent):
             import torch
@@ -101,7 +207,7 @@ object MainEpidemic extends App {
 
   val rfLambda = py.Dynamic.global.epidemic_rf
 
-  // Define epidemic observation function (similar to Main.scala obs function)
+  // uses random data to initialize epidemic data
   CPythonInterpreter.execManyLines(
     """def epidemic_obs(env, agent):
             import torch
@@ -148,7 +254,50 @@ object MainEpidemic extends App {
             return default_obs.unsqueeze(0)
         """)
 
-  val obsLambda = py.Dynamic.global.epidemic_obs
+
+  ///Uses spark to initialize epidemic data
+  CPythonInterpreter.execManyLines(
+    s"""def epidemic_obs_from_spark(env, agent):
+      import torch
+
+      agent_id = int(agent.name.split("_")[1])
+
+      if agent_id < ${collectedData.length}:
+          # Access Row data - Note: collectedData is a Scala Array[Row]
+          row_data = [
+              ${
+              collectedData.map(row => s"[${
+              (0 until row.length).map(i =>
+                if (row.schema.fields(i).dataType == ArrayType(StringType, true)) s"${row.getSeq[String](i).length}"
+                else s"${row.get(i)}"
+              ).mkString(", ")
+              }]").mkString(", ")
+              }
+          ]
+
+          obs_values = row_data[agent_id]
+
+          # Extract normalized features (matching your 7-feature format)
+          obs = torch.tensor([
+              obs_values[0] / 1000000.0,    # susceptible
+              obs_values[1] / 10000.0,      # infected
+              obs_values[2] / 10000.0,      # recovered
+              obs_values[3] / 1000.0,       # deaths
+              obs_values[5] / 20000.0,      # hospitalCapacity
+              obs_values[8] / 1000000.0,    # vaccinatedPopulation
+              obs_values[7] / 10.0          # airports count (already converted to length)
+          ], dtype=torch.float32, device=env.world.device)
+
+          agent.obs = obs
+          return obs.unsqueeze(0)
+
+      # Default observation
+      default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
+      agent.obs = default_obs
+      return default_obs.unsqueeze(0)
+  """)
+
+  val obsLambda = py.Dynamic.global.epidemic_obs_from_spark
 
   // Initialize logging
   WANDBLogger.init()
@@ -158,8 +307,6 @@ object MainEpidemic extends App {
     """import sys, os; [sys.path.append(os.path.abspath(p)) for p in ["./src/main/resources","./build/resources/main","./src/main/scala/resources"] if os.path.isdir(p) and os.path.abspath(p) not in sys.path]"""
   )
 
-
-  // Now you can safely import AbstractEnv
   val scenario = py.module("AbstractEnv").Scenario(rfLambda, obsLambda)
 
 
@@ -173,7 +320,7 @@ object MainEpidemic extends App {
     device = "cpu",
   )
 
-  // Environment configuration (similar to Main.scala configuration)
+  // Environment configuration
   implicit val configuration: Environment => Unit = (e: Environment) => {
     val env = e.asInstanceOf[VmasEpidemicEnvironment]
     env.setSettings(envSettings)
@@ -202,7 +349,7 @@ object MainEpidemic extends App {
     }
     learningConfiguration {
       LearningConfiguration(
-        dqnFactory = new EpidemicNNFactory(1000, RealEpidemicAction.toSeq),
+        dqnFactory = new EpidemicNNFactory(VMASEpidemicState.encoding.elements() , RealEpidemicAction.toSeq),
         snapshotPath = where
       )
     }

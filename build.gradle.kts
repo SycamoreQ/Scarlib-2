@@ -44,6 +44,8 @@ dependencies {
     implementation("ai.kien:python-native-libs_3:0.2.4")
     implementation("org.slf4j:slf4j-api:2.0.6")
     implementation("ch.qos.logback:logback-classic:1.4.5")
+    implementation("org.apache.spark:spark-core_2.13:3.4.0")
+    implementation("org.apache.spark:spark-sql_2.13:3.4.0")
 }
 
 
