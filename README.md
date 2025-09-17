@@ -47,3 +47,13 @@ Once a new repository has been created from this template, the following steps n
 
 - The user must define a gradle task to run the learning and the evaluation. 
     Some template tasks are provided in the file `build.gradle.kts`
+
+## To run the code right now (needs a lot of improvement)
+- Set WANDB API key as 
+```bash 
+WANDB_API_KEY = " "
+```
+- Run 
+```bash
+./gradlew SimpleExperimentalGUI 
+```

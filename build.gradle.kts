@@ -3,6 +3,8 @@ plugins {
     scala
 }
 
+
+
 group = "io.github.davidedomini"
 version = "1.0.0"
 
@@ -31,22 +33,38 @@ sourceSets {
 val scarlibVersion = "3.1.2"
 
 dependencies {
-       implementation("org.scala-lang:scala-library:2.13.10")
+    implementation("org.scala-lang:scala-library:2.13.10")
     implementation("io.github.davidedomini:scarlib-core:$scarlibVersion")
     implementation("io.github.davidedomini:dsl-core:$scarlibVersion")
-    implementation("io.github.davidedomini:alchemist-scafi:$scarlibVersion")
     implementation("it.unibo.alchemist:alchemist:25.14.6")
     implementation("it.unibo.alchemist:alchemist-incarnation-scafi:25.14.6")
     implementation("it.unibo.alchemist:alchemist-incarnation-protelis:25.14.6")
     implementation("it.unibo.alchemist:alchemist-swingui:25.7.1")
     implementation("dev.scalapy:scalapy-core_2.13:0.5.3")
-    // https://mvnrepository.com/artifact/ai.kien/python-native-libs
     implementation("ai.kien:python-native-libs_3:0.2.4")
     implementation("org.slf4j:slf4j-api:2.0.6")
     implementation("ch.qos.logback:logback-classic:1.4.5")
     implementation("org.apache.spark:spark-core_2.13:3.4.0")
     implementation("org.apache.spark:spark-sql_2.13:3.4.0")
+
+    // ✅ Explicitly include json4s in both implementation + runtime
+    implementation("org.json4s:json4s-core_2.13:4.0.7")
+    implementation("org.json4s:json4s-native_2.13:4.0.7")
+    implementation("org.json4s:json4s-jackson_2.13:4.0.7")
+    runtimeOnly("org.json4s:json4s-core_2.13:4.0.7")
+    runtimeOnly("org.json4s:json4s-native_2.13:4.0.7")
+    runtimeOnly("org.json4s:json4s-jackson_2.13:4.0.7")
 }
+
+// ✅ force resolution
+configurations.all {
+    resolutionStrategy {
+        force("org.json4s:json4s-core_2.13:4.0.7")
+        force("org.json4s:json4s-native_2.13:4.0.7")
+        force("org.json4s:json4s-jackson_2.13:4.0.7")
+    }
+}
+
 
 
 tasks.register<JavaExec>("simpleExperimentTraining") {
@@ -84,6 +102,26 @@ tasks.named<JavaExec>("simpleExperimentTrainingGui") {
     mainClass.set("vmas.MainEpidemic")
     classpath = sourceSets.main.get().runtimeClasspath
     environment("SCALAPY_PYTHON_LIBRARY", "/opt/homebrew/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/lib/libpython3.9.dylib")
+}
+
+tasks.named<JavaExec>("simpleExperimentTrainingGui") {
+    jvmArgs(
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.net=ALL-UNNAMED",
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+        "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+        "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+        "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
+        "--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED",
+        "-Dio.netty.tryReflectionSetAccessible=true"
+    )
 }
 
 

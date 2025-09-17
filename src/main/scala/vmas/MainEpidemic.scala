@@ -20,6 +20,12 @@ import org.apache.spark.sql.{SparkSession, Row}
 import org.apache.spark.sql.functions.*
 import org.apache.spark.sql.Encoders
 import scarlib.model.*
+import org.json4s._
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization.write
+
+// Make sure this implicit is in sco
+
 
 object MainEpidemic extends App {
 
@@ -119,6 +125,15 @@ object MainEpidemic extends App {
   val epidemicDF = spark.createDataFrame(rdd, epidemicSchema)
 
   val collectedData = epidemicDF.collect()
+
+  // Make sure this implicit is in scope
+  implicit val formats: Formats = DefaultFormats
+
+  val jsonData = collectedData.map { row =>
+    (0 until row.length).map(row.get).toList
+  }
+
+  val jsonString = write(jsonData) // valid JSON string
 
 
   val nAgents = 3  // Number of countries/regions in epidemic simulation
@@ -257,45 +272,35 @@ object MainEpidemic extends App {
 
   ///Uses spark to initialize epidemic data
   CPythonInterpreter.execManyLines(
-    s"""def epidemic_obs_from_spark(env, agent):
-      import torch
+    s"""
+  import json, torch
 
+  row_data = json.loads('''$jsonString''')
+
+  def epidemic_obs_from_spark(env, agent):
       agent_id = int(agent.name.split("_")[1])
 
-      if agent_id < ${collectedData.length}:
-          # Access Row data - Note: collectedData is a Scala Array[Row]
-          row_data = [
-              ${
-              collectedData.map(row => s"[${
-              (0 until row.length).map(i =>
-                if (row.schema.fields(i).dataType == ArrayType(StringType, true)) s"${row.getSeq[String](i).length}"
-                else s"${row.get(i)}"
-              ).mkString(", ")
-              }]").mkString(", ")
-              }
-          ]
-
+      if agent_id < len(row_data):
           obs_values = row_data[agent_id]
 
-          # Extract normalized features (matching your 7-feature format)
           obs = torch.tensor([
-              obs_values[0] / 1000000.0,    # susceptible
-              obs_values[1] / 10000.0,      # infected
-              obs_values[2] / 10000.0,      # recovered
-              obs_values[3] / 1000.0,       # deaths
-              obs_values[5] / 20000.0,      # hospitalCapacity
-              obs_values[8] / 1000000.0,    # vaccinatedPopulation
-              obs_values[7] / 10.0          # airports count (already converted to length)
+              obs_values[0] / 1000000.0,
+              obs_values[1] / 10000.0,
+              obs_values[2] / 10000.0,
+              obs_values[3] / 1000.0,
+              obs_values[5] / 20000.0,
+              obs_values[8] / 1000000.0,
+              len(obs_values[7]) / 10.0  # airports count
           ], dtype=torch.float32, device=env.world.device)
 
           agent.obs = obs
           return obs.unsqueeze(0)
 
-      # Default observation
       default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
       agent.obs = default_obs
       return default_obs.unsqueeze(0)
   """)
+
 
   val obsLambda = py.Dynamic.global.epidemic_obs_from_spark
 
