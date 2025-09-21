@@ -23,8 +23,8 @@ import scarlib.model.*
 import org.json4s._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
+import java.io.{File, FileWriter, BufferedWriter}
 
-// Make sure this implicit is in sco
 
 
 object MainEpidemic extends App {
@@ -273,33 +273,34 @@ object MainEpidemic extends App {
   ///Uses spark to initialize epidemic data
   CPythonInterpreter.execManyLines(
     s"""
-  import json, torch
-
-  row_data = json.loads('''$jsonString''')
-
-  def epidemic_obs_from_spark(env, agent):
-      agent_id = int(agent.name.split("_")[1])
-
-      if agent_id < len(row_data):
-          obs_values = row_data[agent_id]
-
-          obs = torch.tensor([
-              obs_values[0] / 1000000.0,
-              obs_values[1] / 10000.0,
-              obs_values[2] / 10000.0,
-              obs_values[3] / 1000.0,
-              obs_values[5] / 20000.0,
-              obs_values[8] / 1000000.0,
-              len(obs_values[7]) / 10.0  # airports count
-          ], dtype=torch.float32, device=env.world.device)
-
-          agent.obs = obs
-          return obs.unsqueeze(0)
-
-      default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
-      agent.obs = default_obs
-      return default_obs.unsqueeze(0)
-  """)
+       |import json, torch
+       |
+       |row_data = json.loads('''$jsonString''')
+       |
+       |def epidemic_obs_from_spark(env, agent):
+       |    agent_id = int(agent.name.split("_")[1])
+       |
+       |    if agent_id < len(row_data):
+       |        obs_values = row_data[agent_id]
+       |
+       |        obs = torch.tensor([
+       |            obs_values[0] / 1000000.0,
+       |            obs_values[1] / 10000.0,
+       |            obs_values[2] / 10000.0,
+       |            obs_values[3] / 1000.0,
+       |            obs_values[5] / 20000.0,
+       |            obs_values[8] / 1000000.0,
+       |            len(obs_values[7]) / 10.0  # airports count
+       |        ], dtype=torch.float32, device=env.world.device)
+       |
+       |        agent.obs = obs
+       |        return obs.unsqueeze(0)
+       |
+       |    default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
+       |    agent.obs = default_obs
+       |    return default_obs.unsqueeze(0)
+       |""".stripMargin
+  )
 
 
   val obsLambda = py.Dynamic.global.epidemic_obs_from_spark
