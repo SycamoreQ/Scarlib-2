@@ -13,7 +13,7 @@ object RewardFunctionDSL {
     CPythonInterpreter.execManyLines("import torch")
 
     private var pythonCode = ""
-    private var rf: Option[RewardFunction] = None
+    var rf: Option[RewardFunction] = None
 
     abstract class RewardFunctionStep(param: RewardFunctionStepParam) {
         def compute()(implicit currentState: State, action: model.Action, newState: State): Any

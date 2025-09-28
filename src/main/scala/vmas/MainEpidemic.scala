@@ -340,7 +340,7 @@ object MainEpidemic extends App {
 
   val epidemicSystem = CTDELearningSystem {
     rewardFunction {
-      EmptyRewardFunctionEpidemic()
+      DSLRewardFunction()
     }
 
     actionSpace {
@@ -375,40 +375,35 @@ object MainEpidemic extends App {
        |import torch.nn as nn
        |import json
        |
-       |# Same EpidemicModel as in EpidemicNNFactory (7 -> 64 -> 64 -> actions)
-       |class EpidemicModel(nn.Module):
-       |    def __init__(self, input_dim=7, hidden_dim=64, output_dim=${RealEpidemicAction.toSeq.size}):
-       |        super().__init__()
-       |        self.fc1 = nn.Linear(input_dim, hidden_dim)
-       |        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-       |        self.fc3 = nn.Linear(hidden_dim, output_dim)
+       |# Build Sequential model to match training
+       |model = nn.Sequential(
+       |    nn.Linear(7, 64),
+       |    nn.ReLU(),
+       |    nn.Linear(64, 64),
+       |    nn.ReLU(),
+       |    nn.Linear(64, ${RealEpidemicAction.toSeq.size})
+       |)
        |
-       |    def forward(self, x):
-       |        x = torch.relu(self.fc1(x))
-       |        x = torch.relu(self.fc2(x))
-       |        return self.fc3(x)
-       |
-       |# Load weights
-       |model = EpidemicModel()
-       |state_dict = torch.load("epidemic_networks/1-2025-09-23-19-27-03-agent-0", map_location="cpu")
-       |model.load_state_dict(state_dict)
+       |checkpoint = torch.load("epidemic_networks/1-2025-09-28-08-58-29-agent-0", map_location="cpu")
+       |if "state_dict" in checkpoint:
+       |    model.load_state_dict(checkpoint["state_dict"])
+       |else:
+       |    model.load_state_dict(checkpoint)
        |model.eval()
        |
-       |# Load epidemic Spark data that Scala wrote into jsonString
        |row_data = json.loads('''$jsonString''')
        |
        |def normalize_row(obs_values):
        |    return [
-       |        obs_values[0] / 1_000_000.0,   # susceptible
-       |        obs_values[1] / 10_000.0,      # infected
-       |        obs_values[2] / 10_000.0,      # recovered
-       |        obs_values[3] / 1_000.0,       # deaths
-       |        obs_values[5] / 20_000.0,      # hospitalCapacity
-       |        obs_values[8] / 1_000_000.0,   # vaccinatedPopulation
-       |        len(obs_values[7]) / 10.0      # airport count
+       |        obs_values[0] / 1_000_000.0,
+       |        obs_values[1] / 10_000.0,
+       |        obs_values[2] / 10_000.0,
+       |        obs_values[3] / 1_000.0,
+       |        obs_values[5] / 20_000.0,
+       |        obs_values[8] / 1_000_000.0,
+       |        len(obs_values[7]) / 10.0
        |    ]
        |
-       |# Run inference for each country/agent
        |for idx, obs_values in enumerate(row_data):
        |    obs_tensor = torch.tensor([normalize_row(obs_values)], dtype=torch.float32)
        |    q_values = model(obs_tensor).detach().numpy().flatten().tolist()
@@ -417,13 +412,18 @@ object MainEpidemic extends App {
        |""".stripMargin
   )
 
-
 }
 
 
 
 
-case class EmptyRewardFunctionEpidemic() extends RewardFunction{
-  override def compute(currentState: State, action: Action, newState: State): Double = 0.0
+case class DSLRewardFunction() extends RewardFunction {
+  override def compute(currentState: State, action: Action, newState: State): Double = {
+    RewardFunctionDSL.rf match {
+      case Some(r) => r.compute(currentState, action, newState)
+      case None    => 0.0
+    }
+  }
 }
+
 
