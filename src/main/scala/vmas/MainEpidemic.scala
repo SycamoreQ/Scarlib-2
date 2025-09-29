@@ -14,6 +14,7 @@ import scarlib.model.DSL.{CTDELearningSystem, actionSpace, agents, dataset, envi
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
 import me.shadaj.scalapy.*
+import me.shadaj.scalapy.py.SeqConverters
 import ai.kien.python.Python
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{SparkSession, Row}
@@ -32,7 +33,15 @@ object MainEpidemic extends App {
   val spark = SparkSession.builder()
     .appName("EpidemicSimulation")
     .master("local[*]")
+    .config("spark.driver.host", "localhost")
+    .config("spark.driver.bindAddress", "0.0.0.0")
+    .config("spark.sql.adaptive.enabled", "false")
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    .config("spark.sql.adaptive.coalescePartitions.enabled", "false")
     .getOrCreate()
+
+  // Set log level to reduce noise
+  spark.sparkContext.setLogLevel("WARN")
 
   import spark.implicits._
 
@@ -137,8 +146,8 @@ object MainEpidemic extends App {
 
 
   val nAgents = 3  // Number of countries/regions in epidemic simulation
-  val nSteps = 100
-  val nEpochs = 150
+  val nSteps = 2
+  val nEpochs = 1
 
   // Initialize Python environment
   CPythonInterpreter.execManyLines("import torch")
@@ -340,7 +349,7 @@ object MainEpidemic extends App {
 
   val epidemicSystem = CTDELearningSystem {
     rewardFunction {
-      DSLRewardFunction()
+      DebugRewardFunction()
     }
 
     actionSpace {
@@ -367,48 +376,70 @@ object MainEpidemic extends App {
   } (ExecutionContext.global, VMASEpidemicState.encoding)
 
   println("Starting epidemic simulation training...")
-  epidemicSystem.learn(envSettings.nEpochs, envSettings.nSteps)
+  //epidemicSystem.learn(envSettings.nEpochs, envSettings.nSteps)
+
+  println("Skipping training for quick inference test...")
+  // epidemicSystem.learn(envSettings.nEpochs, envSettings.nSteps)
 
   CPythonInterpreter.execManyLines(
+    """print(">>> Python alive")"""
+  )
+
+  val torch = py.module("torch")
+
+  // Convert Scala Seq -> Python list -> torch tensor
+  val t = torch.tensor(Seq(1, 2, 3).toPythonCopy)
+
+  println(s">>> Torch tensor from Scala: $t")
+
+
+
+  // --- quick check: list saved checkpoints and load latest ---
+  CPythonInterpreter.execManyLines(
     s"""
-       |import torch
-       |import torch.nn as nn
-       |import json
-       |
-       |# Build Sequential model to match training
-       |model = nn.Sequential(
-       |    nn.Linear(7, 64),
-       |    nn.ReLU(),
-       |    nn.Linear(64, 64),
-       |    nn.ReLU(),
-       |    nn.Linear(64, ${RealEpidemicAction.toSeq.size})
-       |)
-       |
-       |checkpoint = torch.load("epidemic_networks/1-2025-09-28-08-58-29-agent-0", map_location="cpu")
-       |if "state_dict" in checkpoint:
-       |    model.load_state_dict(checkpoint["state_dict"])
+       |import glob, os, json, torch
+       |files = glob.glob("epidemic_networks/*")
+       |print("checkpoints found:", files)
+       |if not files:
+       |    print("No checkpoints found - nothing to load")
        |else:
-       |    model.load_state_dict(checkpoint)
-       |model.eval()
+       |    latest = max(files, key=os.path.getctime)
+       |    print("Loading latest checkpoint:", latest)
+       |    checkpoint = torch.load(latest, map_location="cpu")
        |
-       |row_data = json.loads('''$jsonString''')
+       |    # build model matching training architecture (Sequential)
+       |    import torch.nn as nn
+       |    model = nn.Sequential(
+       |        nn.Linear(7, 64),
+       |        nn.ReLU(),
+       |        nn.Linear(64, 64),
+       |        nn.ReLU(),
+       |        nn.Linear(64, ${RealEpidemicAction.toSeq.size})
+       |    )
        |
-       |def normalize_row(obs_values):
-       |    return [
-       |        obs_values[0] / 1_000_000.0,
-       |        obs_values[1] / 10_000.0,
-       |        obs_values[2] / 10_000.0,
-       |        obs_values[3] / 1_000.0,
-       |        obs_values[5] / 20_000.0,
-       |        obs_values[8] / 1_000_000.0,
-       |        len(obs_values[7]) / 10.0
-       |    ]
+       |    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+       |        model.load_state_dict(checkpoint["state_dict"])
+       |    else:
+       |        model.load_state_dict(checkpoint)
+       |    model.eval()
        |
-       |for idx, obs_values in enumerate(row_data):
-       |    obs_tensor = torch.tensor([normalize_row(obs_values)], dtype=torch.float32)
-       |    q_values = model(obs_tensor).detach().numpy().flatten().tolist()
-       |    best_action = int(torch.argmax(model(obs_tensor)))
-       |    print(f"Agent {idx}: Obs={normalize_row(obs_values)} -> Q-values={q_values}, BestAction={best_action}")
+       |    row_data = json.loads('''$jsonString''')
+       |    def normalize_row(obs_values):
+       |        return [
+       |            obs_values[0] / 1_000_000.0,
+       |            obs_values[1] / 10_000.0,
+       |            obs_values[2] / 10_000.0,
+       |            obs_values[3] / 1_000.0,
+       |            obs_values[5] / 20_000.0,
+       |            obs_values[8] / 1_000_000.0,
+       |            len(obs_values[7]) / 10.0
+       |        ]
+       |
+       |    for idx, obs_values in enumerate(row_data):
+       |        obs_tensor = torch.tensor([normalize_row(obs_values)], dtype=torch.float32)
+       |        q_values = model(obs_tensor).detach().numpy().flatten().tolist()
+       |        best_action = int(torch.argmax(model(obs_tensor)))
+       |        print(f"Agent {idx}: Obs={normalize_row(obs_values)} -> Q-values={q_values}, BestAction={best_action}")
        |""".stripMargin
   )
 
@@ -425,5 +456,10 @@ case class DSLRewardFunction() extends RewardFunction {
     }
   }
 }
+
+case class DebugRewardFunction() extends RewardFunction {
+  override def compute(currentState: State, action: Action, newState: State): Double = -math.random()
+}
+
 
 
