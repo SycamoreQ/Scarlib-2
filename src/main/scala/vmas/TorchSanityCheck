@@ -1,0 +1,38 @@
+package vmas
+
+import me.shadaj.scalapy.interpreter.CPythonInterpreter
+
+object TorchSanityTest {
+  def main(args: Array[String]): Unit = {
+    println(">>> Scala alive")
+
+    // Run Python print (no indentation!)
+    CPythonInterpreter.execManyLines(
+      """print(">>> Python alive")"""
+    )
+
+    // Import torch
+    CPythonInterpreter.execManyLines(
+      """import torch"""
+    )
+
+    // Make a simple tensor and print it
+    CPythonInterpreter.execManyLines(
+      """t = torch.tensor([1.0, 2.0, 3.0])
+print(">>> Torch tensor:", t)"""
+    )
+
+    // Try to load your checkpoint
+    val checkpointPath = "epidemic_networks/checkpoint.pth"
+    CPythonInterpreter.execManyLines(
+      s"""import os
+if os.path.exists("$checkpointPath"):
+    state = torch.load("$checkpointPath", map_location="cpu")
+    print(">>> Loaded checkpoint keys:", state.keys())
+else:
+    print(">>> No checkpoint found at $checkpointPath")"""
+    )
+
+    println(">>> Scala finished test")
+  }
+}

@@ -26,8 +26,6 @@ import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
 import java.io.{File, FileWriter, BufferedWriter}
 
-
-
 object MainEpidemic extends App {
 
   val spark = SparkSession.builder()
@@ -40,9 +38,7 @@ object MainEpidemic extends App {
     .config("spark.sql.adaptive.coalescePartitions.enabled", "false")
     .getOrCreate()
 
-  // Set log level to reduce noise
   spark.sparkContext.setLogLevel("WARN")
-
   import spark.implicits._
 
   val epidemicSchema = StructType(Seq(
@@ -68,275 +64,208 @@ object MainEpidemic extends App {
 
   def epidemicDataToRow(data: EpidemicData): Row = {
     Row(
-      data.susceptible,
-      data.infected,
-      data.recovered,
-      data.deaths,
-      data.exposed,
-      data.hospitalCapacity,
-      data.location,
-      data.airports, // List[String] -> Seq[String] for Spark
-      data.vaccinatedPopulation,
-      data.travelVolume,
-      data.currentDate,
-      data.previousInfected,
-      data.previousRecovered,
-      data.previousDeaths,
-      data.ageDistribution, // Map[String, Int]
-      data.incomingTravelers, // Map[String, Int]
-      data.outgoingTravelers, // Map[String, Int]
-      data.airportTraffic // Map[String, Map[String, Int]]
+      data.susceptible, data.infected, data.recovered, data.deaths, data.exposed,
+      data.hospitalCapacity, data.location, data.airports, data.vaccinatedPopulation,
+      data.travelVolume, data.currentDate, data.previousInfected, data.previousRecovered,
+      data.previousDeaths, data.ageDistribution, data.incomingTravelers,
+      data.outgoingTravelers, data.airportTraffic
     )
   }
 
-
   val epidemicData = Seq(
     EpidemicData(
-      susceptible = 1000000,
-      infected = 1500,
-      recovered = 500,
-      deaths = 50,
-      exposed = 200,
-      hospitalCapacity = 10000,
-      location = "Italy",
-      airports = List("FCO", "MXP"),
-      vaccinatedPopulation = 50000,
-      travelVolume = 25000
+      susceptible = 1000000, infected = 1500, recovered = 500, deaths = 50, exposed = 200,
+      hospitalCapacity = 10000, location = "Italy", airports = List("FCO", "MXP"),
+      vaccinatedPopulation = 50000, travelVolume = 25000
     ),
     EpidemicData(
-      susceptible = 999000,
-      infected = 1200,
-      recovered = 400,
-      deaths = 30,
-      exposed = 150,
-      hospitalCapacity = 8000,
-      location = "Germany",
-      airports = List("FRA", "MUC"),
-      vaccinatedPopulation = 45000,
-      travelVolume = 30000
+      susceptible = 999000, infected = 1200, recovered = 400, deaths = 30, exposed = 150,
+      hospitalCapacity = 8000, location = "Germany", airports = List("FRA", "MUC"),
+      vaccinatedPopulation = 45000, travelVolume = 30000
     ),
     EpidemicData(
-      susceptible = 11100000,
-      infected = 3000,
-      recovered = 50,
-      deaths = 1000,
-      exposed = 400,
-      hospitalCapacity = 100000,
-      location = "China",
-      airports = List("XIV", "JKP", "MNO", "TUV"),
-      vaccinatedPopulation = 5000,
-      travelVolume = 2500,
+      susceptible = 11100000, infected = 3000, recovered = 50, deaths = 1000, exposed = 400,
+      hospitalCapacity = 100000, location = "China", airports = List("XIV", "JKP", "MNO", "TUV"),
+      vaccinatedPopulation = 5000, travelVolume = 2500
     )
   )
 
   val rowData = epidemicData.map(epidemicDataToRow)
   val rdd = spark.sparkContext.parallelize(rowData)
   val epidemicDF = spark.createDataFrame(rdd, epidemicSchema)
-
   val collectedData = epidemicDF.collect()
 
-  // Make sure this implicit is in scope
   implicit val formats: Formats = DefaultFormats
+  val jsonData = collectedData.map { row => (0 until row.length).map(row.get).toList }
+  val jsonString = write(jsonData)
 
-  val jsonData = collectedData.map { row =>
-    (0 until row.length).map(row.get).toList
-  }
+  val nAgents = 3
+  val nSteps = 50
+  val nEpochs = 100
 
-  val jsonString = write(jsonData) // valid JSON string
-
-
-  val nAgents = 3  // Number of countries/regions in epidemic simulation
-  val nSteps = 2
-  val nEpochs = 1
-
-  // Initialize Python environment
+  // Initialize Python
   CPythonInterpreter.execManyLines("import torch")
   CPythonInterpreter.execManyLines("import numpy as np")
 
-  // Define epidemic-specific constants
   val diseaseOrigin = "China"
-  val targetCountries = Seq("Italy" ,  "Germany")
+  val targetCountries = Seq("Italy", "Germany")
 
   val epidemicRewardFunction =
     InfectionPenalty((Tensor(0.5)), CurrentState) ++
       hospitalUtilization(Tensor(-0.2), CurrentState) ++
       VaccinationDrive(Tensor(-0.8), NewState) ++
-      airportFunc(Tensor(0.5) , diseaseOrigin, targetCountries, CurrentState) -->
+      airportFunc(Tensor(0.5), diseaseOrigin, targetCountries, CurrentState) -->
       Lambda("x: x.sum()") >>
       Lambda("x: x.clamp(-100.0, 100.0)")
 
   println(s"Epidemic Reward Function DSL: ${epidemicRewardFunction.toString}")
 
+  rewardFunctionStep { epidemicRewardFunction }
 
-  // Set up reward function step using your DSL (similar to Main.scala)
-  rewardFunctionStep {
-    epidemicRewardFunction
-  }
-
-  val descriptor = VmasStateDescriptor(
-    hasPosition = false,
-    hasVelocity = false,
-    extraDimension = 7
-  )
+  val descriptor = VmasStateDescriptor(hasPosition = false, hasVelocity = false, extraDimension = 7)
   VMASEpidemicState.setDescriptor(descriptor)
   println(s"Epidemic state encoding size: ${VMASEpidemicState.encoding.elements()}")
 
-
-  // Define epidemic reward function in Python using DSL components
-  CPythonInterpreter.execManyLines(
-    """def epidemic_rf(env, agent):
-            import torch
-            import math
-
-            # Get agent state
-            agent_id = int(agent.name.split("_")[1])
-
-            if not hasattr(env, 'epidemic_states') or agent_id >= len(env.epidemic_states):
-                return torch.zeros(env.world.batch_dim, dtype=torch.float32, device=env.world.device)
-
-            state = env.epidemic_states[agent_id]
-
-            # Implementation of your DSL functions:
-            # InfectionPenalty(-0.5, CurrentState)
-            infection_rate = getattr(state, 'infection_rate', state.infected / (state.susceptible + state.infected + state.recovered))
-            infection_penalty = -0.5 * infection_rate * 100
-
-            # hospitalUtilization(-0.3, CurrentState)
-            hospital_util = state.infected / state.hospital_capacity if state.hospital_capacity > 0 else 0
-            if hospital_util > 10000:
-                hospital_penalty = -0.3 * hospital_util * 100
-            elif hospital_util > 1000:
-                hospital_penalty = -0.3 * hospital_util * 10
-            else:
-                hospital_penalty = -0.3 * hospital_util * 2
-
-            # VaccinationDrive(0.8, NewState) - using current state as proxy
-            vaccination_rate = getattr(state, 'vaccination_rate', state.vaccinated_population / (state.susceptible + state.infected + state.recovered))
-            if vaccination_rate > infection_rate:
-                vaccination_reward = 0.8 * vaccination_rate * 100
-            else:
-                vaccination_reward = 0.8 * vaccination_rate * 2
-
-            # airportFunc(-0.2, diseaseOrigin, targetCountries, CurrentState)
-            # Simplified airport connectivity penalty
-            airport_penalty = -0.2 * (state.airports / 10.0) * infection_rate
-
-            # Combine all components (DSL: ++ operations)
-            total_reward = infection_penalty + hospital_penalty + vaccination_reward + airport_penalty
-
-            # Apply DSL transformations: --> Lambda("x: x.sum()") >> Lambda("x: x.clamp(-100.0, 100.0)")
-            total_reward = max(-100.0, min(100.0, total_reward))  # Clamp between -100 and 100
-
-            return torch.tensor(total_reward, device=env.world.device, dtype=torch.float32).squeeze(0)
-        """)
-
+  // Python reward function - CRITICAL: No indentation after opening """
+  val rewardFunctionCode = """def epidemic_rf(env, agent):
+    import torch
+    agent_id = int(agent.name.split("_")[1])
+    if not hasattr(env, 'epidemic_states') or agent_id >= len(env.epidemic_states):
+        return torch.zeros(env.world.batch_dim, dtype=torch.float32, device=env.world.device)
+    state = env.epidemic_states[agent_id]
+    batch_size = env.world.batch_dim if hasattr(env.world, 'batch_dim') else 1
+    infection_rate = state.infected / max(1.0, (state.susceptible + state.infected + state.recovered))
+    infection_penalty = -0.5 * infection_rate * 100
+    hospital_util = state.infected / max(1.0, state.hospital_capacity)
+    if hospital_util > 1.0:
+        hospital_penalty = -0.3 * hospital_util * 100
+    else:
+        hospital_penalty = -0.3 * hospital_util * 2
+    vaccination_rate = state.vaccinated_population / max(1.0, (state.susceptible + state.infected + state.recovered))
+    vaccination_reward = 0.8 * vaccination_rate * 100
+    airport_penalty = -0.2 * (state.airports / 10.0) * infection_rate
+    total_reward = infection_penalty + hospital_penalty + vaccination_reward + airport_penalty
+    total_reward = max(-100.0, min(100.0, total_reward))
+    return torch.full((batch_size,), total_reward, device=env.world.device, dtype=torch.float32)
+"""
+  CPythonInterpreter.execManyLines(rewardFunctionCode)
   val rfLambda = py.Dynamic.global.epidemic_rf
 
-  // uses random data to initialize epidemic data
-  CPythonInterpreter.execManyLines(
-    """def epidemic_obs(env, agent):
-            import torch
+  // Observation function with DYNAMIC epidemic simulation
+  val obsFromSparkCode = s"""import json
+import torch
 
-            # Initialize epidemic states if needed (similar to distance calculation in Main.scala)
-            if agent.name == "agent_0":
-                # Initialize epidemic data for all agents
-                env.epidemic_states = []
-                for i in range(env.n_agents):
-                    epidemic_state = {
-                        'susceptible': 1000000.0 - (i * 1000),  # Example population
-                        'infected': 100.0 + (i * 10),
-                        'recovered': 50.0 + (i * 5),
-                        'deaths': 5.0 + i,
-                        'hospital_capacity': 10000.0,
-                        'vaccinated_population': 5000.0 + (i * 100),
-                        'airports': 5 + i
-                    }
-                    env.epidemic_states.append(type('EpidemicState', (), epidemic_state)())
+row_data = json.loads('$jsonString')
 
-            # Get agent-specific observation
-            agent_id = int(agent.name.split("_")[1])
+def epidemic_obs_from_spark(env, agent):
+    agent_id = int(agent.name.split("_")[1])
 
-            if hasattr(env, 'epidemic_states') and agent_id < len(env.epidemic_states):
-                state = env.epidemic_states[agent_id]
+    # Initialize epidemic state on first call
+    if not hasattr(env, 'epidemic_state'):
+        env.epidemic_state = {}
+        for idx, obs_values in enumerate(row_data):
+            env.epidemic_state[idx] = {
+                'susceptible': float(obs_values[0]),
+                'infected': float(obs_values[1]),
+                'recovered': float(obs_values[2]),
+                'deaths': float(obs_values[3]),
+                'hospital_capacity': float(obs_values[5]),
+                'vaccinated': float(obs_values[8]),
+                'airports': len(obs_values[7]),
+                'last_action': None
+            }
 
-                # Create observation tensor (normalized values)
-                obs = torch.tensor([
-                    state.susceptible / 1000000.0,      # Normalized susceptible population
-                    state.infected / 10000.0,           # Normalized infected population
-                    state.recovered / 10000.0,          # Normalized recovered population
-                    state.deaths / 1000.0,              # Normalized deaths
-                    state.hospital_capacity / 20000.0,  # Normalized hospital capacity
-                    state.vaccinated_population / 1000000.0, # Normalized vaccinated
-                    state.airports / 10.0               # Normalized airports
-                ], dtype=torch.float32, device=env.world.device)
+    if agent_id >= len(row_data):
+        default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
+        agent.obs = default_obs
+        return default_obs.unsqueeze(0).repeat(env.world.batch_dim, 1)
 
-                agent.obs = obs
-                return obs.unsqueeze(0)
+    state = env.epidemic_state[agent_id]
 
-            # Default observation if no epidemic state
-            default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
-            agent.obs = default_obs
-            return default_obs.unsqueeze(0)
-        """)
+    # Simulate epidemic dynamics based on last action
+    if hasattr(agent, 'last_action') and agent.last_action is not None:
+        action_idx = agent.last_action
 
+        # Base transmission rate
+        beta = 0.3
+        gamma = 0.1
 
-  ///Uses spark to initialize epidemic data
-  CPythonInterpreter.execManyLines(
-    s"""
-       |import json, torch
-       |
-       |row_data = json.loads('''$jsonString''')
-       |
-       |def epidemic_obs_from_spark(env, agent):
-       |    agent_id = int(agent.name.split("_")[1])
-       |
-       |    if agent_id < len(row_data):
-       |        obs_values = row_data[agent_id]
-       |
-       |        obs = torch.tensor([
-       |            obs_values[0] / 1000000.0,
-       |            obs_values[1] / 10000.0,
-       |            obs_values[2] / 10000.0,
-       |            obs_values[3] / 1000.0,
-       |            obs_values[5] / 20000.0,
-       |            obs_values[8] / 1000000.0,
-       |            len(obs_values[7]) / 10.0  # airports count
-       |        ], dtype=torch.float32, device=env.world.device)
-       |
-       |        agent.obs = obs
-       |        return obs.unsqueeze(0)
-       |
-       |    default_obs = torch.zeros(7, dtype=torch.float32, device=env.world.device)
-       |    agent.obs = default_obs
-       |    return default_obs.unsqueeze(0)
-       |""".stripMargin
-  )
+        # Action effects on transmission
+        if action_idx == 1:
+            beta *= 0.7
+        elif action_idx == 3:
+            beta *= 0.5
+        elif action_idx == 8:
+            state['vaccinated'] += state['susceptible'] * 0.05
+            state['susceptible'] -= state['susceptible'] * 0.05
+        elif action_idx == 7:
+            state['vaccinated'] += state['susceptible'] * 0.02
+            state['susceptible'] -= state['susceptible'] * 0.02
+        elif action_idx == 5:
+            gamma *= 1.5
 
+        # SIR model dynamics
+        total_pop = state['susceptible'] + state['infected'] + state['recovered']
+        new_infections = beta * state['susceptible'] * state['infected'] / max(1, total_pop)
+        new_recoveries = gamma * state['infected']
 
+        # Death rate increases if hospitals overwhelmed
+        death_rate = 0.01
+        if state['infected'] > state['hospital_capacity']:
+            death_rate = 0.05
+        new_deaths = death_rate * state['infected']
+
+        # Update state
+        state['susceptible'] = max(0, state['susceptible'] - new_infections)
+        state['infected'] = max(0, state['infected'] + new_infections - new_recoveries - new_deaths)
+        state['recovered'] += new_recoveries
+        state['deaths'] += new_deaths
+
+    # Create observation tensor
+    obs = torch.tensor([
+        state['susceptible'] / 1000000.0,
+        state['infected'] / 10000.0,
+        state['recovered'] / 10000.0,
+        state['deaths'] / 1000.0,
+        state['hospital_capacity'] / 20000.0,
+        state['vaccinated'] / 1000000.0,
+        state['airports'] / 10.0
+    ], dtype=torch.float32, device=env.world.device)
+
+    # For vectorized environments, create batch dimension
+    if env.world.batch_dim > 1:
+        obs = obs.unsqueeze(0).expand(env.world.batch_dim, -1)
+    else:
+        obs = obs.unsqueeze(0)
+
+    agent.obs = obs
+    return obs
+"""
+  CPythonInterpreter.execManyLines(obsFromSparkCode)
   val obsLambda = py.Dynamic.global.epidemic_obs_from_spark
 
   // Initialize logging
   WANDBLogger.init()
 
-  // Ensure Python can import local modules like AbstractEnv.py
+  // Add Python path
   CPythonInterpreter.execManyLines(
-    """import sys, os; [sys.path.append(os.path.abspath(p)) for p in ["./src/main/resources","./build/resources/main","./src/main/scala/resources"] if os.path.isdir(p) and os.path.abspath(p) not in sys.path]"""
+    """import sys, os
+sys.path.extend([os.path.abspath(p) for p in ["./src/main/resources","./build/resources/main","./src/main/scala/resources"] if os.path.isdir(p) and os.path.abspath(p) not in sys.path])
+"""
   )
 
   val scenario = py.module("AbstractEnv").Scenario(rfLambda, obsLambda)
 
-
-  private val envSettings = VmasSettings(
+  val envSettings = VmasSettings(
     scenario = scenario,
-    nEnv = 1,
+    nEnv = 1,  // Start with 1 env - simpler for debugging
     nAgents = nAgents,
     nTargets = 0,
     nSteps = nSteps,
     nEpochs = nEpochs,
-    device = "cpu",
+    device = "cpu"
   )
 
-  // Environment configuration
   implicit val configuration: Environment => Unit = (e: Environment) => {
     val env = e.asInstanceOf[VmasEpidemicEnvironment]
     env.setSettings(envSettings)
@@ -345,121 +274,197 @@ object MainEpidemic extends App {
     env.initEnv()
   }
 
-  private val where = s"./epidemic_networks"
+  val where = "./epidemic_networks"
 
   val epidemicSystem = CTDELearningSystem {
-    rewardFunction {
-      DebugRewardFunction()
-    }
-
-    actionSpace {
-      RealEpidemicAction.toSeq
-    }
-
-    dataset {
-      ReplayBuffer[State, Action](10000)
-    }
-
-    agents {
-      nAgents
-    }
+    rewardFunction { DSLRewardFunction() }
+    actionSpace { RealEpidemicAction.toSeq }
+    dataset { ReplayBuffer[State, Action](10000) }
+    agents { nAgents }
     learningConfiguration {
       LearningConfiguration(
-        dqnFactory = new EpidemicNNFactory(VMASEpidemicState.encoding.elements() , RealEpidemicAction.toSeq),
+        dqnFactory = new EpidemicNNFactory(VMASEpidemicState.encoding.elements(), RealEpidemicAction.toSeq),
         snapshotPath = where
       )
     }
-
-    environment {
-      "vmas.VmasEpidemicEnvironment"
-    }
-  } (ExecutionContext.global, VMASEpidemicState.encoding)
+    environment { "vmas.VmasEpidemicEnvironment" }
+  }(ExecutionContext.global, VMASEpidemicState.encoding)
 
   println("Starting epidemic simulation training...")
-  //epidemicSystem.learn(envSettings.nEpochs, envSettings.nSteps)
+  for (epoch <- 1 to nEpochs) {
+    if (epoch % 10 == 0) {
+      println(s"Epoch $epoch/$nEpochs")
+    }
+    epidemicSystem.learn(1, nSteps)
+  }
+  println("Training completed.")
 
-  println("Skipping training for quick inference test...")
-  // epidemicSystem.learn(envSettings.nEpochs, envSettings.nSteps)
-
-  CPythonInterpreter.execManyLines(
-    """print(">>> Python alive")"""
-  )
-
+  // Verify Python and PyTorch
+  CPythonInterpreter.execManyLines("""print(">>> Python alive")""")
   val torch = py.module("torch")
-
-  // Convert Scala Seq -> Python list -> torch tensor
   val t = torch.tensor(Seq(1, 2, 3).toPythonCopy)
-
   println(s">>> Torch tensor from Scala: $t")
 
+  println("\n" + "="*80)
+  println("STARTING MODEL VALIDATION")
+  println("="*80)
 
+  try {
+    // Store validation results in Python global variables
+    CPythonInterpreter.execManyLines("""
+import glob
+import torch
+import torch.nn as nn
+import os
 
-  // --- quick check: list saved checkpoints and load latest ---
-  CPythonInterpreter.execManyLines(
-    s"""
-       |import glob, os, json, torch
-       |files = glob.glob("epidemic_networks/*")
-       |print("checkpoints found:", files)
-       |if not files:
-       |    print("No checkpoints found - nothing to load")
-       |else:
-       |    latest = max(files, key=os.path.getctime)
-       |    print("Loading latest checkpoint:", latest)
-       |    checkpoint = torch.load(latest, map_location="cpu")
-       |
-       |    # build model matching training architecture (Sequential)
-       |    import torch.nn as nn
-       |    model = nn.Sequential(
-       |        nn.Linear(7, 64),
-       |        nn.ReLU(),
-       |        nn.Linear(64, 64),
-       |        nn.ReLU(),
-       |        nn.Linear(64, ${RealEpidemicAction.toSeq.size})
-       |    )
-       |
-       |    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-       |        model.load_state_dict(checkpoint["state_dict"])
-       |    else:
-       |        model.load_state_dict(checkpoint)
-       |    model.eval()
-       |
-       |    row_data = json.loads('''$jsonString''')
-       |    def normalize_row(obs_values):
-       |        return [
-       |            obs_values[0] / 1_000_000.0,
-       |            obs_values[1] / 10_000.0,
-       |            obs_values[2] / 10_000.0,
-       |            obs_values[3] / 1_000.0,
-       |            obs_values[5] / 20_000.0,
-       |            obs_values[8] / 1_000_000.0,
-       |            len(obs_values[7]) / 10.0
-       |        ]
-       |
-       |    for idx, obs_values in enumerate(row_data):
-       |        obs_tensor = torch.tensor([normalize_row(obs_values)], dtype=torch.float32)
-       |        q_values = model(obs_tensor).detach().numpy().flatten().tolist()
-       |        best_action = int(torch.argmax(model(obs_tensor)))
-       |        print(f"Agent {idx}: Obs={normalize_row(obs_values)} -> Q-values={q_values}, BestAction={best_action}")
-       |""".stripMargin
-  )
+validation_results = {}
 
+files = glob.glob("epidemic_networks/*")
+validation_results['num_files'] = len(files)
+validation_results['files'] = files
+
+if files:
+    latest = max(files, key=os.path.getctime)
+    validation_results['latest_checkpoint'] = latest
+
+    checkpoint = torch.load(latest, map_location="cpu")
+    model = nn.Sequential(
+        nn.Linear(7, 64), nn.ReLU(),
+        nn.Linear(64, 64), nn.ReLU(),
+        nn.Linear(64, 9)
+    )
+
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
+
+    model.eval()
+
+    action_names = ['NoAction', 'SocialDistancing', 'NoTravelRestriction',
+                   'CompleteTravelLockdown', 'NormalHealthcare',
+                   'EmergencyHealthcareMobilization', 'NoVaccination',
+                   'TargetedVaccination', 'MassVaccination']
+
+    # Test scenarios
+    scenarios = {
+        'Italy (high infection)': [1.0, 0.15, 0.05, 0.005, 0.5, 0.05, 0.2],
+        'Germany (moderate)': [0.999, 0.12, 0.04, 0.003, 0.4, 0.045, 0.2],
+        'China (severe)': [11.1, 0.3, 0.005, 0.1, 5.0, 0.005, 0.4],
+        'Controlled (low infection)': [0.3, 0.001, 0.65, 0.001, 0.5, 0.8, 0.2]
+    }
+
+    validation_results['predictions'] = {}
+    for name, obs in scenarios.items():
+        obs_tensor = torch.tensor([obs])
+        output = model(obs_tensor).detach().numpy()[0]
+        best_idx = int(output.argmax())
+        validation_results['predictions'][name] = {
+            'action': action_names[best_idx],
+            'action_idx': best_idx,
+            'q_values': output.tolist()
+        }
+
+    validation_results['success'] = True
+else:
+    validation_results['success'] = False
+""")
+
+    // Retrieve results from Python
+    val validationResults = py.Dynamic.global.validation_results
+    val numFiles = validationResults.bracketAccess("num_files").as[Int]
+    val success = validationResults.bracketAccess("success").as[Boolean]
+
+    println(s"Found $numFiles checkpoint files")
+
+    if (success) {
+      val latestCheckpoint = validationResults.bracketAccess("latest_checkpoint").as[String]
+      println(s"Loaded checkpoint: $latestCheckpoint")
+      println("\nModel Predictions:")
+      println("-" * 80)
+
+      val predictions = validationResults.bracketAccess("predictions")
+      val scenarios = Seq("Italy (high infection)", "Germany (moderate)", "China (severe)", "Controlled (low infection)")
+
+      scenarios.foreach { scenario =>
+        val pred = predictions.bracketAccess(scenario)
+        val action = pred.bracketAccess("action").as[String]
+        val actionIdx = pred.bracketAccess("action_idx").as[Int]
+        val qValues = pred.bracketAccess("q_values")
+
+        println(s"\n$scenario:")
+        println(s"  Recommended Action: $action (index: $actionIdx)")
+
+        // Get top 3 Q-values
+        val qList = (0 until 9).map { i =>
+          val qVal = qValues.bracketAccess(i).as[Double]
+          (i, qVal)
+        }.sortBy(-_._2).take(3)
+
+        val actionNames = Seq("NoAction", "SocialDistancing", "NoTravelRestriction",
+          "CompleteTravelLockdown", "NormalHealthcare",
+          "EmergencyHealthcareMobilization", "NoVaccination",
+          "TargetedVaccination", "MassVaccination")
+
+        println("  Top 3 Actions:")
+        qList.foreach { case (idx, qVal) =>
+          println(f"    ${actionNames(idx)}: $qVal%.3f")
+        }
+      }
+
+      println("\n" + "="*80)
+      println("VALIDATION ANALYSIS")
+      println("="*80)
+
+      // Check if model makes sense
+      val italyAction = predictions.bracketAccess("Italy (high infection)").bracketAccess("action").as[String]
+      val chinaAction = predictions.bracketAccess("China (severe)").bracketAccess("action").as[String]
+      val controlledAction = predictions.bracketAccess("Controlled (low infection)").bracketAccess("action").as[String]
+
+      println(s"\nHigh infection scenario → $italyAction")
+      println(s"Severe outbreak scenario → $chinaAction")
+      println(s"Controlled scenario → $controlledAction")
+
+      if (italyAction == chinaAction && chinaAction == controlledAction) {
+        println("\n⚠ WARNING: Model recommends same action for all scenarios")
+        println("   This suggests the model has NOT learned meaningful policies")
+      } else {
+        println("\n✓ Model produces different actions for different scenarios")
+        println("   This suggests learning may have occurred")
+      }
+
+    } else {
+      println("No checkpoints found - model did not save during training")
+    }
+
+    println("\n" + "="*80)
+    println("Validation completed")
+    println("="*80)
+
+  } catch {
+    case e: Exception =>
+      println(s"ERROR during validation: ${e.getMessage}")
+      e.printStackTrace()
+  }
+
+  println("Shutting down...")
+  spark.stop()
+  println("Shutdown complete")
 }
-
-
-
 
 case class DSLRewardFunction() extends RewardFunction {
   override def compute(currentState: State, action: Action, newState: State): Double = {
-    RewardFunctionDSL.rf match {
+    val reward = RewardFunctionDSL.rf match {
       case Some(r) => r.compute(currentState, action, newState)
-      case None    => 0.0
+      case None => 0.0
     }
+    if (scala.util.Random.nextDouble() < 0.01) {
+      println(s"Reward: $reward for action: $action")
+    }
+    reward
   }
 }
 
 case class DebugRewardFunction() extends RewardFunction {
   override def compute(currentState: State, action: Action, newState: State): Double = -math.random()
 }
-
-
-

@@ -6,20 +6,30 @@ import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Writer.floatWriter
 
-
 trait TensorConvertibleAction extends Action {
   def toTensor(): py.Dynamic
+  def toTensor(nEnv: Int): py.Dynamic  // New method for batching
 }
 
-abstract class VMASAction(tuple: (Float, Float)) extends Action{
+abstract class VMASAction(tuple: (Float, Float)) extends Action {
 
-    def toTensor(): py.Dynamic = {
-        val np = TorchSupport.arrayModule
-        val torch = TorchSupport.deepLearningLib()
-        val array=np.array(Seq(tuple).toPythonCopy)
-        torch.from_numpy(array).to(AutodiffDevice())
-    }
+  // Original method - creates single action
+  def toTensor(): py.Dynamic = {
+    val np = TorchSupport.arrayModule
+    val torch = TorchSupport.deepLearningLib()
+    val array = np.array(Seq(tuple).toPythonCopy)
+    torch.from_numpy(array).to(AutodiffDevice())
+  }
 
+  // New method - creates batched actions for nEnv parallel environments
+  def toTensor(nEnv: Int): py.Dynamic = {
+    val np = TorchSupport.arrayModule
+    val torch = TorchSupport.deepLearningLib()
+    // Replicate the same action across all environments
+    val batchedTuples = Seq.fill(nEnv)(tuple)
+    val array = np.array(batchedTuples.toPythonCopy)
+    torch.from_numpy(array).to(AutodiffDevice())
+  }
 }
 
 case object North extends VMASAction(tuple = (0.0f, 1f * VMASAction.speed))
@@ -31,24 +41,25 @@ case object NorthWest extends VMASAction(tuple = (-1f * VMASAction.speed, 1f * V
 case object SouthEast extends VMASAction(tuple = (1f * VMASAction.speed, -1f * VMASAction.speed))
 case object SouthWest extends VMASAction(tuple = (-1f * VMASAction.speed, -1f * VMASAction.speed))
 
-object VMASAction{
-    val speed = 0.5f
-    def toSeq: Seq[VMASAction] = Seq(North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest)
+object VMASAction {
+  val speed = 0.5f
+  def toSeq: Seq[VMASAction] = Seq(North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest)
 }
 
+case object NoAction extends VMASAction(0f, 0f)
+case object SocialDistancing extends VMASAction(0f, 0f)
+case object NoTravelRestriction extends VMASAction(0f, 0f)
+case object CompleteTravelLockdown extends VMASAction(0f, 0f)
+case object NormalHealthcare extends VMASAction(0f, 0f)
+case object EmergencyHealthcareMobilization extends VMASAction(0f, 0f)
+case object NoVaccination extends VMASAction(0f, 0f)
+case object TargetedVaccination extends VMASAction(0f, 0f)
+case object MassVaccination extends VMASAction(0f, 0f)
 
-
-case object NoAction extends VMASAction(0f , 0f)
-case object SocialDistancing extends VMASAction(0f , 0f)
-case object NoTravelRestriction extends VMASAction(0f , 0f)
-case object CompleteTravelLockdown extends VMASAction(0f , 0f)
-case object NormalHealthcare extends VMASAction(0f , 0f)
-case object EmergencyHealthcareMobilization extends VMASAction(0f , 0f)
-case object NoVaccination extends VMASAction(0f , 0f)
-case object TargetedVaccination extends VMASAction(0f , 0f)
-case object MassVaccination extends VMASAction(0f , 0f)
-
-object RealEpidemicAction{
-  def toSeq: Seq[VMASAction] = Seq(NoAction , SocialDistancing , NoTravelRestriction , CompleteTravelLockdown , NormalHealthcare , EmergencyHealthcareMobilization , NoVaccination ,
-    TargetedVaccination , MassVaccination)
+object RealEpidemicAction {
+  def toSeq: Seq[VMASAction] = Seq(
+    NoAction, SocialDistancing, NoTravelRestriction, CompleteTravelLockdown,
+    NormalHealthcare, EmergencyHealthcareMobilization, NoVaccination,
+    TargetedVaccination, MassVaccination
+  )
 }

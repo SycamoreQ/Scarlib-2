@@ -1,4 +1,4 @@
-package vmas 
+package vmas
 
 import scarlib.model.{Action, AutodiffDevice, Environment, State, RewardFunction}
 import scarlib.neuralnetwork.TorchSupport
@@ -17,9 +17,9 @@ import scala.collection.mutable
 
 class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
                               actionSpace: Seq[Action])
-  extends Environment (rewardFunction , actionSpace){
+  extends Environment(rewardFunction, actionSpace) {
 
-  private var settings : VmasSettings = _
+  private var settings: VmasSettings = _
   private var logger: Logger = _
   private var render: Boolean = false
   private var framesFutures = List[Future[py.Dynamic]]()
@@ -31,8 +31,8 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
     lastObservation = List.fill(settings.nAgents)(None)
   }
 
-  def setLogger(logger : Logger): Unit = this.logger = logger
-  def enableRender(flag : Boolean ) : Unit = this.render=flag
+  def setLogger(logger: Logger): Unit = this.logger = logger
+  def enableRender(flag: Boolean): Unit = this.render = flag
 
   def initEnv(): Unit = env = makeEnv()
 
@@ -49,11 +49,10 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
 
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
-  //TODO Handling multiple environments
   private var lastObservation: List[Option[State]] = List.empty
   private var steps = 0
   private var epochs = 0
-  private val rendererExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10));
+  private val rendererExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
 
   private var actions: Seq[py.Dynamic] = Seq[py.Dynamic]()
   private var promises = Seq[scala.concurrent.Promise[(Double, State)]]()
@@ -67,31 +66,46 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
    * @return a [[Future]] that contains the reward of the action and the next state
    */
   override def step(action: Action, agentId: Int): Future[(Double, State)] = {
-    //Check if agent is the last one
-    //val agentPos = agents(agentId).pos //Tensor of shape [n_env, 2] - NOT USED
-    actions = actions :+ action.asInstanceOf[VMASAction].toTensor()
+    // Convert action to batched tensor for parallel environments
+    val actionTensor = action.asInstanceOf[VMASAction].toTensor(settings.nEnv)
+    actions = actions :+ actionTensor
+
     val nAgents: Int = env.n_agents.as[Int]
     val isLast = nAgents - 1 == agentId
     val promise = scala.concurrent.Promise[(Double, State)]()
     val future = promise.future
     promises = promises :+ promise
+
     if (isLast) {
       steps += 1
       val result = env.step(actions.toPythonCopy)
       actions = Seq[py.Dynamic]()
       val observations = result.bracketAccess(0)
       val rewards = result.bracketAccess(1)
+
       for (i <- 0 until nAgents) {
         val agentName = "agent_" + i
-        val reward = rewards.bracketAccess(agentName).as[Double]
+
+        // Average reward across all parallel environments
+        val rewardTensor = rewards.bracketAccess(agentName)
+        val reward = if (settings.nEnv > 1) {
+          // Get mean reward across batch
+          rewardTensor.mean().item().as[Double]
+        } else {
+          rewardTensor.as[Double]
+        }
+
         AgentGlobalStore().put(i, s"agent-$i-reward", reward)
+
         val observation = observations.bracketAccess(agentName)
         val state = new VMASEpidemicState(observation)
-        lastObservation = lastObservation.updated(agentId, Some(state)) //TODO check if this is correct
+        lastObservation = lastObservation.updated(agentId, Some(state))
         promises(i).success((reward, state))
+
         if (render && steps % 25 == 0) {
           framesFutures = framesFutures :+ appendFrame()
         }
+
         if (steps == settings.nSteps) {
           val combinedFuture: Future[List[py.Dynamic]] = Future.sequence(framesFutures)
           combinedFuture.onComplete(_ => ())
@@ -103,7 +117,7 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
       }
       promises = Seq[scala.concurrent.Promise[(Double, State)]]()
     }
-    return future
+    future
   }
 
   private def appendFrame(): Future[py.Dynamic] = Future(frames.append(
@@ -114,7 +128,11 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
   override def observe(agentId: Int): State = {
     lastObservation(agentId) match {
       case Some(state) => state
-      case None => new VMASEpidemicState(TorchSupport.deepLearningLib().from_numpy(TorchSupport.arrayModule.zeros(VMASEpidemicState.encoding.elements())))
+      case None => new VMASEpidemicState(
+        TorchSupport.deepLearningLib().from_numpy(
+          TorchSupport.arrayModule.zeros(VMASEpidemicState.encoding.elements())
+        )
+      )
     }
   }
 
@@ -132,12 +150,9 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
     AgentGlobalStore().clearAll()
   }
 
-  def render(epoch: Int) = {
-    // Get the current date and time
+  def render(epoch: Int): Unit = {
     val currentDateTime: LocalDateTime = LocalDateTime.now()
-    // Define the desired date-time format
     val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("ddMMyyyyHHmmss")
-    // Format the current date and time using the defined formatter
     val formattedDateTime: String = currentDateTime.format(formatter)
     val gifName = settings.scenario.__class__.__name__.as[String] + "-" + epoch + "-" + formattedDateTime + ".gif"
     print("Saving gif: " + gifName)
@@ -152,7 +167,5 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
     frames = py.Dynamic.global.list(Seq[py.Dynamic]().toPythonCopy)
   }
 
-
   def logOnFile(): Unit = ???
-
 }

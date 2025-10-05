@@ -1,0 +1,7 @@
+package vmas
+
+object hello {
+
+
+
+}
