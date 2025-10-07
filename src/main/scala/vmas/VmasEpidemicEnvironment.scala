@@ -95,6 +95,11 @@ class VmasEpidemicEnvironment(rewardFunction: RewardFunction,
           rewardTensor.as[Double]
         }
 
+        // DEBUG: Print VMAS reward
+        if (steps % 10 == 0) { // Print every 10 steps
+          println(s"VMAS REWARD for agent $i: $reward")
+        }
+
         AgentGlobalStore().put(i, s"agent-$i-reward", reward)
 
         val observation = observations.bracketAccess(agentName)
